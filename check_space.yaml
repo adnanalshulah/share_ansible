@@ -1,0 +1,21 @@
+---
+- name: Add new line in specific file 
+  hosts: all
+  become: true
+#  gather_facts: no
+  vars:
+    file_path: '/etc/ssh/sshd_config' #Add the path of the file
+    add_new_line: '#Adnan' #The new line need to be added
+    service: 'sshd' #The name of the service
+
+  tasks:
+    - name: Ensure that free space on the {{ mountname }} is grater than 30%
+      vars:
+#        mount: "{{ ansible_mounts | selectattr('mount','equalto',item.mount) | list | first }}"
+        mount: "{{ ansible_mounts | selectattr('mount','equalto',item.mount) | list | first }}"
+      with_items:
+        - "{{ ansible_mounts }}"
+      assert:
+        that:
+          - mount.size_available > mount.size_total|float * 0.15
+        msg: Disk space has reached 85% threshold

@@ -1,0 +1,89 @@
+---
+- name: Add a list of local users
+  hosts: all
+  become: true
+  gather_facts: no
+  vars:
+
+  tasks:
+
+    - name: Add the group 'uiacg'
+      group:
+        name: uiacg
+        gid: 600
+
+    - name: Add the user 'saua'
+      user:
+        name: saua
+        uid: 20999
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/saua
+        password_expire_max: 90
+    
+    - name: Add the user 'patrol'
+      user:
+        name: patrol
+        uid: 1221
+        group: users
+        shell: /bin/bash
+        create_home: yes
+        home: /opt/patrol
+        password_expire_max: 90
+
+    - name: Add the user 'secadm'
+      user:
+        name: secadm
+        uid: 45292
+        group: uiacg
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/secadm
+        password_expire_max: 90
+
+    - name: Add the user 'apdsec'
+      user:
+        name: apdsec
+        uid: 339909
+        group: users
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/apdsec
+        password_expire_max: 90
+
+    - name: Add the user 'ssacc'
+      user:
+        name: ssacc
+        uid: 5777
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/ssacc
+        password_expire_max: 90
+
+    - name: Add the user 'csirt'
+      user:
+        name: csirt
+        uid: 6999
+        group: user
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/csirt
+        password_expire_max: 90
+
+    - name: Add the user 'admcisco'
+      user:
+        name: admcisco
+        uid: 6983
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/admcisco
+        password_expire_max: 90
+
+    - name: Add the user 'redats'
+      user:
+        name: redats
+        uid: 7676
+        shell: /bin/bash
+        create_home: yes
+        home: /export/home/redats
+        password_expire_max: 90

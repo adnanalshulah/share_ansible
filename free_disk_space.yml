@@ -1,0 +1,24 @@
+---
+- name: Check size of the FileSystem in the system 
+  hosts: all 
+  become: true
+  gather_facts: no
+ 
+  vars:
+    free_mb: 512      # this value or less of the size 
+    percent_full: 90  # this value or more for percent of the disk size
+    cmd: df -m |
+          awk '$5 ~ /^[0-9]/' | 
+          awk '{ print $1,$6,substr( $5, 1, length($5)-1 ),$4,$2 }' | 
+          awk '$3>={{ percent_full }} && $4<={{ free_mb }} { print $1, $2, $3"%", $4"M", $5"M" }' 
+ 
+  tasks:
+  - name: 'Check the filesystem size and save the output'
+    shell: "{{ cmd }}"
+    register: cmd_output
+    changed_when: cmd_output.stdout != ""
+ 
+  - name: "Print the results of the filesyetem which is higher than {{ percent_full }}"
+    debug:
+      var: cmd_output.stdout
+    when: cmd_output.stdout != ""

@@ -1,0 +1,14 @@
+---
+- name: Patch playbook 
+  hosts: localhost
+  vars:
+    package_state: present 
+  tasks:
+
+    - name: upgrade all packages, excluding given  packages
+      yum:
+        name: tmux 
+        state: "{{ package_state }}" 
+      ignore_errors: true
+      become: true
+

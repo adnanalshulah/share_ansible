@@ -1,0 +1,60 @@
+---
+- name: Comment and Add new line in specific file and restart the service 
+  hosts: all
+  become: true
+
+  tasks:
+  - name: Touch a file, using symbolic modes to set the permissions (equivalent to 0644)
+    register: patrol_file
+    stat:
+      path: '/opt/patrol' 
+
+  - name: Check for prtoal LVM
+    when:
+    - ansible_lvm['lvs']['patrol'] is defined
+    ignore_errors: true
+    fail:
+      msg: LVM patrol exist
+
+  - name: fail
+    when: patrol_file.stat.exists == true
+    debug:
+      msg: the file exisit
+
+  - name: create /opt/patrol
+    when: patrol_file.stat.exists == false or ansible_lvm['lvs']['patrol'] is not defined
+    block:
+      - name: Create a logical volume of 15g.
+        lvol:
+          vg: rhel
+          lv: patrol
+          size: 1g
+
+      - name: format the xfs filesystem
+        filesystem:
+          fstype: xfs
+          dev: /dev/rhel/patrol
+
+      - name: mount the lv on /data1
+        mount:
+          path: /opt/patrol
+          src: /dev/rhel/patrol
+          fstype: xfs
+          state: mounted
+
+
+  - name: Add the user 'patrol'
+    user:
+      name: patrol
+      uid: 1221
+      group: users
+      shell: /bin/bash
+      create_home: yes
+      home: /opt/patrol
+
+  - name: Change file ownership, group and permissions
+    file:
+      path: /opt/patrol 
+      owner: patrol
+      group: users
+      mode: '0644'

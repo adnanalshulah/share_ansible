@@ -1,0 +1,35 @@
+---
+- name: Comment and Add new line in specific file and restart the service 
+  hosts: all
+  become: true
+  gather_facts: no
+  vars:
+    file_path: '/tmp/file1' #Add the path of the file
+    comment_line: 'ali'
+    add_new_line: 'test' #The new line need to be added
+    service: 'sshd' #The name of the service
+
+ tasks:
+   - name: Commenting a line in file which has the work in it {{ comment_line }}
+     replace:
+       path: "{{ file_path }}" 
+       regexp: '(.*{{ comment_line }}.*)' 
+        regexp: '(.* ali .*)'
+       replace: '#\1'
+
+   - name: Ensure the new line been added in the file "{{ file_path }}" 
+     lineinfile:
+       path: "{{ file_path }}" 
+       line: "{{ add_new_line }}" 
+       backup: yes 
+      notify: restart service
+
+  handlers:
+    - name: restart service 
+      service:
+        name: "{{ service }}"
+        state: restarted
+    
+
+ 
+

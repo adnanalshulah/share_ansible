@@ -1,0 +1,20 @@
+---
+- name: Delete misconfigration file for yum repositrory  
+  hosts: all
+  become: true
+  gather_facts: no
+  vars:
+    required_path: '/etc/yum.repos.d/' #search of file inside this path
+    excludes_files_list: #List of files will be kept inside the path 
+      - redhat.repo
+      - aiman.repo
+
+  tasks:
+    - name: Replace between the expressions (requires Ansible >= 2.4)
+      replace:
+        path: /etc/ssh/sshd_config
+        before: 'Matcj User usr\* Group '
+        before: ' Address '
+        regexp: '^(.+)$'
+        replace: 'adnan'
+

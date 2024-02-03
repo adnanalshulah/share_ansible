@@ -1,0 +1,22 @@
+---
+- name: Set release and Update the packages in the server  
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Schedule a command to execute in 20 minutes making sure it is unique in the queue
+      at:
+        command: shutdown -r now  
+        count: 1
+        units: minutes
+        unique: true
+
+
+#    - name: Gather the rpm package facts
+#      package_facts:
+#        manager: auto
+    
+    - name: debug
+      debug:
+        msg: hellp
+
