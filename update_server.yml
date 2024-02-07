@@ -1,0 +1,46 @@
+---
+- name: Patch server 
+  hosts: localhost
+  vars:
+    package_state: present
+    package_exclude: "" # the name of the package needs to be excluded example kernel
+    security_patching: "false" # to patching only security errate
+    reboot_request: "false" # default is to reboot the server if needed but you can change it to 'false' won't reboot
+  tasks:
+    - name: Starting check the server patching and upgrade
+      block:
+
+      - name: Do the dry run for yum
+        ansible.builtin.command: subscription-manager status
+
+      - name: Do the dry run for yum
+        ansible.builtin.command: yum update -y --setopt tsflags=test
+
+      - name: install  (yum-utils) package to check if the server required reboot or no
+        throttle: 400
+        ansible.builtin.yum:
+          name: yum-utils
+          state: latest
+          update_cache: yes
+
+      - name: upgrade all packages, excluding given  packages
+        ansible.builtin.yum:
+          name: "*"
+          state: "{{ package_state }}"
+          exclude: "{{ package_exclude | default ('') }}" # pakcage need to be excluded from the patching
+          security: "{{ security_patching | default (omit) }}"
+        ignore_errors: true
+      - name: Check if the server rquires REBOOT or no
+        register: result
+        ansible.builtin.command: needs-restarting -r
+
+      - name: Reboot a slow machine that might have lots of updates to apply
+        when: (result.rc == 1) and (reboot_request == 'true')
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+          
+      rescue:
+
+      - name: The playbook is failed
+        ansible.builtin.debug:
+          msg: PLASE CHECK THE SUBSCRIPATION TO SERVER
