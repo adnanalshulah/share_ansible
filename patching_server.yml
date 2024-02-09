@@ -1,0 +1,71 @@
+---
+- name: Patch playbook
+  hosts: rhel7
+  gather_facts: false
+  vars:
+    package_state: latest
+    package_exclude: "" # the name of the package needs to be excluded example kernel
+    security_patching: "false" # to patching only security errate
+    reboot_request: "true" # default is to reboot the server if needed but you can change it to 'false' won't reboot
+
+  tasks:
+
+    - name: Starting check the server patching and upgrade
+      block:
+
+      - name: Check the subscription-manager status if it is register or no
+        changed_when: false
+        ansible.builtin.command: subscription-manager status
+
+
+      - name: Do the dry run for yum update
+        changed_when: false
+        ansible.builtin.command: yum update -y --setopt tsflags=test
+
+      - name: install  (yum-utils) package to check if the server required reboot or no
+        throttle: 400
+        ansible.builtin.yum:
+          name: yum-utils
+          state: latest
+          update_cache: yes
+
+      - name: upgrade all packages, excluding given  packages
+        ansible.builtin.yum:
+          name: '*'
+          state: "{{ package_state }}"
+          exclude: "{{ package_exclude | default ('') }}" # pakcage need to be excluded from the patching
+          security: "{{ security_patching | default (omit) }}"
+
+      - name: Check if the server rquires REBOOT or no
+        register: check_reboot
+        changed_when: false
+        failed_when: false
+        no_log: True
+        ansible.builtin.command: needs-restarting -r
+
+      - name: "Print result of server requires reboot or no"
+        failed_when: false
+        assert:
+          that: check_reboot.rc == 1
+          fail_msg: "REBOOT NOT REQUIRED"
+          success_msg: "REBOOT REQUIRED"
+
+      - name: Reboot a slow machine that might have lots of updates to apply
+        when: (check_reboot.rc == 1) and (reboot_request == 'true')
+        register: result_reboot
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+
+      - name: "Print result of reboot conditions are meet or no"
+        failed_when: false
+        assert:
+          that: result_reboot.changed  == false
+          fail_msg: "SERVERS REBOOT BECAUSE OF REBOOT CONDITIONS MEET"
+          success_msg: "SERVERS DONT REBOOT BECAUSE OF REBOOT CONDITION NOT MEET"
+
+
+      rescue:
+
+      - name: The playbook is failed
+        ansible.builtin.debug:
+          msg: PLASE CHECK THE SUBSCRIPATION TO SERVER OR YUM ISSUES
