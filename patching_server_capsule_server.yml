@@ -1,0 +1,208 @@
+# Playbook to patch the OS for both satellite and capsule 
+# you need to use the --tags satellite for patching satellite server
+# you need to use the --tags capsule for patching capsule server 
+---
+- name: Satellite or Capsule OS Patching and Reboot server if required
+  hosts: "{{ host_list }}"
+  gather_facts: false
+  become: true
+
+  tasks:
+
+    - name: Satrt upgrading the satellite server
+      tags:
+        - satellite
+        - never
+      block:
+
+      - name: Disable All repos and enable giving repos to the server
+        vars:
+          enabled_repos:
+            - rhel-8-for-x86_64-appstream-rpms
+            - rhel-8-for-x86_64-baseos-rpms
+            - satellite-6.13-for-rhel-8-x86_64-rpms
+            - satellite-maintenance-6.13-for-rhel-8-x86_64-rpms
+        community.general.rhsm_repository:
+          name: "{{ enabled_repos }}"
+          purge: true
+
+      - name: check if the yum-utils RPM exist
+        ansible.builtin.package_facts:
+          manager: auto
+
+      - name: Install (yum-utils) package to check if the server required reboot or no
+        when: "'yum-utils' not in ansible_facts.packages"
+        ansible.builtin.shell: satellite-maintain packages install -y yum-utils
+
+      - name: Stop the satellite service using satellite-maintain
+        register: result_service_stop
+        ansible.builtin.shell: satellite-maintain service stop
+
+      - name: satellite-maintain service stop return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_service_stop.rc == 0
+          success_msg: "Success! Services stopped completelly."
+          fail_msg: "Failed! to stop the services."
+
+      - name: Patching the satellite server packages
+        ansible.builtin.yum:
+          name: '*'
+          state: latest
+          disable_plugin: foreman-protector
+
+      - name: Making sure no packages inconsistency after installation or upgrade
+        register: result_update
+        ansible.builtin.shell: satellite-installer
+
+      - name: satellite update return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_update.rc == 0
+          success_msg: "Success! Satellite updated completelly."
+          fail_msg: "Failed! to update the satellite server"
+
+      - name: Start the satellite service using satellite-maintain
+        register: result_service_start
+        ansible.builtin.shell: satellite-maintain service start
+
+      - name: satellite-maintain service start return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_service_start.rc == 0
+          success_msg: "Success! Services started completelly."
+          fail_msg: "Failed! to start the services."      
+
+      - name: Check if the server requires REBOOT or no
+        register: check_reboot
+        changed_when: false
+        failed_when: false
+        no_log: true
+        ansible.builtin.command: needs-restarting -r
+
+      - name: "Print result of server requires reboot or no"
+        failed_when: false
+        ansible.builtin.assert:
+          that: check_reboot.rc == 1
+          success_msg: "REBOOT IS REQUIRED !"
+          fail_msg: "REBOOT IS NOT REQUIRED !"
+
+      - name: Reboot the server because it is required
+        when: (check_reboot.rc == 1) and (reboot_request == 'true')
+        register: result_reboot
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+
+      - name: "Print result of server requires reboot or no"
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_reboot.changed == false
+          success_msg: "SERVERS DON'T REBOOT BECAUSE OF REBOOT CONDITIONS IS NOT MEET"
+          fail_msg: "SERVERS REBOOT BECAUSE OF REBOOT CONDITIONS IS MEET"    
+
+      rescue:
+
+        - name: Automation is failed
+          ansible.builtin.debug:
+            msg: Go check the failing task manually then run the job again
+
+    - name: Start upgrading the capsule server
+      tags:
+        - capsule
+        - never
+      block:
+
+      - name: Disable All repos and enable giving repos to the server 
+        vars:
+          enabled_repos:
+            - rhel-8-for-x86_64-appstream-rpms
+            - rhel-8-for-x86_64-baseos-rpms
+            - satellite-6.13-for-rhel-8-x86_64-rpms
+            - satellite-maintenance-6.13-for-rhel-8-x86_64-rpms
+            - satellite-capsule-6.13-for-rhel-8-x86_64-rpms
+            - satellite-client-6-for-rhel-8-x86_64-rpms
+            - satellite-utils-6.13-for-rhel-8-x86_64-rpms
+        community.general.rhsm_repository:
+          name: "{{ enabled_repos }}"
+          purge: true
+
+      - name: check if the yum-utils RPM exist
+        ansible.builtin.package_facts:
+          manager: auto
+
+      - name: Install (yum-utils) package to check if the server required reboot or no
+        when: "'yum-utils' not in ansible_facts.packages"
+        ansible.builtin.shell: satellite-maintain packages install -y yum-utils
+
+      - name: Stop the capsule service using satellite-maintain
+        register: result_service_stop
+        ansible.builtin.shell: satellite-maintain service stop 
+
+      - name: satellite-maintain service stop return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_service_stop.rc == 0
+          success_msg: "Success! Capsule Services stopped completelly."
+          fail_msg: "Failed! to stop the Capsule services."
+
+      - name: Patching the Capsule server packages
+        ansible.builtin.yum:
+          name: '*'
+          state: latest
+          disable_plugin: foreman-protector
+
+      - name: Making sure no packages inconsistency after installation or upgrade
+        register: result_update
+        ansible.builtin.shell: satellite-installer 
+
+      - name: Capsule update return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_update.rc == 0
+          success_msg: "Success! Capsule updated completelly."
+          fail_msg: "Failed! to update the Capsule server"
+
+      - name: Start the Capsule service using satellite-maintain
+        register: result_service_start
+        ansible.builtin.shell: satellite-maintain service start 
+
+      - name: satellite-maintain service start return code is zero
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_service_start.rc == 0
+          success_msg: "Success! Capsule Services started completelly."
+          fail_msg: "Failed! to Capsule start the services."      
+
+      - name: Check if the server requires REBOOT or no
+        register: check_reboot
+        changed_when: false
+        failed_when: false
+        no_log: true
+        ansible.builtin.command: needs-restarting -r
+
+      - name: "Print result of server requires reboot or no"
+        failed_when: false
+        ansible.builtin.assert:
+          that: check_reboot.rc == 1
+          success_msg: "REBOOT IS REQUIRED !"
+          fail_msg: "REBOOT IS NOT REQUIRED !"
+
+      - name: Reboot the server because it is required
+        when: (check_reboot.rc == 1) and (reboot_request == 'true')
+        register: result_reboot
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+
+      - name: "Print result of server requires reboot or no"
+        failed_when: false
+        ansible.builtin.assert:
+          that: result_reboot.changed == false
+          success_msg: "SERVERS DON'T REBOOT BECAUSE OF REBOOT CONDITIONS IS NOT MEET"
+          fail_msg: "SERVERS REBOOT BECAUSE OF REBOOT CONDITIONS IS MEET"     
+
+      rescue:
+ 
+        - name: Automation Playbook is failed
+          ansible.builtin.debug:
+            msg: Go check the failing task manually then run the job again
+
