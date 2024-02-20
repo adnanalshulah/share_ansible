@@ -1,6 +1,6 @@
 ---
 - name: Patch playbook
-  hosts: rhel7
+  hosts: "{{ hostname }}"
   gather_facts: false
   vars:
     package_state: latest
