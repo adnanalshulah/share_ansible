@@ -1,0 +1,17 @@
+# This is playbook to patch server by specific packages, and you can exclude package if you want
+# Additional you can apply security errata packages only 
+---
+- name: Patching specific packages with option to exclude packages or security errata only  
+  hosts: localhost
+  vars:
+    - updating_packages: "*" # Adding packages separated by "," EX: "sudo,sos" or "*" to all packages
+    - excluding_packages : "" # Adding packages separated by "," EX: "sudo,sos"
+    - security_value: false
+  tasks:
+
+    - name: upgrade all packages, excluding given  packages
+      yum:
+        name: "{{ updating_packages }}"
+        state: latest
+        exclude: "{{ excluding_packages | default(omit) }}"
+        security: "{{ security_value | default(omit) }}"
