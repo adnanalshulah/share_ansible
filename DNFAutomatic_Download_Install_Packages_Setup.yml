@@ -19,12 +19,8 @@
       command: "{{ item }}"
 
     - name: update the packages dnf-automatic-download package
-      vars:
-        packages:
-        - dnf-automatic
-      ignore_errors: true
       yum:
-        name: "{{ packages }}"
+        name: dnf-automatic
         state: latest
 
     - name: Enable the the service dnf-automatic
