@@ -8,7 +8,7 @@
     Install_Time: 'OnCalendar=*-*-* 18:00' # you must follow the format
 
   tasks:
-
+  
     - name: Run a command to refresh the subscription-manager to update the errate in satellite
       loop:
         - subscription-manager config --rhsm.package_profile_on_trans 1
@@ -37,6 +37,7 @@
         name: "{{ item }}"
         enabled: yes
         state: started
+    
     - name: Update the time in the dnf-automatic-download.timer service
       notify:
         - Reload systemd daemon
@@ -63,7 +64,6 @@
         path: /usr/lib/systemd/system/dnf-automatic-install.timer
         regexp: '^RandomizedDelaySec='
         line: 'RandomizedDelaySec=1m'
-
 
     - name: Add reboot line in the dnf automatic configuration file
       notify:
