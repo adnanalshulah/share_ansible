@@ -1,0 +1,98 @@
+---
+- name: Configure DNF Automatic Services
+  hosts: "{{ host_list }}"
+  gather_facts: false
+  become: true
+  vars:
+    Download_Time: 'OnCalendar=*-*-* 16:00' # you must follow the format
+    Install_Time: 'OnCalendar=*-*-* 18:00' # you must follow the format
+
+  tasks:
+
+    - name: Run a command to refresh the subscription-manager to update the errate in satellite
+      loop:
+        - subscription-manager config --rhsm.package_profile_on_trans 1
+        - subscription-manager refresh
+      changed_when: "result_subscription_manager.rc == 1"
+      failed_when: "result_subscription_manager.rc > 1"
+      register: "result_subscription_manager"
+      command: "{{ item }}"
+
+    - name: update the packages dnf-automatic-download package
+      vars:
+        packages:
+        - dnf-automatic
+      ignore_errors: true
+      yum:
+        name: "{{ packages }}"
+        state: latest
+
+    - name: Enable the the service dnf-automatic
+      with_items:
+        - dnf-automatic.timer
+        - dnf-automatic-notifyonly.timer
+        - dnf-automatic-download.timer
+        - dnf-automatic-install.timer
+      service:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+    - name: Update the time in the dnf-automatic-download.timer service
+      notify:
+        - Reload systemd daemon
+        - Restart dnf-automatic-download.timer
+      lineinfile:
+        path: /usr/lib/systemd/system/dnf-automatic-download.timer
+        regexp: '^OnCalendar='
+        line: "{{ Download_Time }}"
+
+    - name: Update the Calendar time in the dnf-automatic-install.timer service
+      notify:
+        - Reload systemd daemon
+        - Restart dnf-automatic-install.timer
+      lineinfile:
+        path: /usr/lib/systemd/system/dnf-automatic-install.timer
+        regexp: '^OnCalendar='
+        line: "{{ Install_Time }}"
+
+    - name: Update the RandomizedDelaySec time in the dnf-automatic-install.timer service
+      notify:
+        - Reload systemd daemon
+        - Restart dnf-automatic-install.timer
+      lineinfile:
+        path: /usr/lib/systemd/system/dnf-automatic-install.timer
+        regexp: '^RandomizedDelaySec='
+        line: 'RandomizedDelaySec=1m'
+
+
+    - name: Add reboot line in the dnf automatic configuration file
+      notify:
+        - Reload systemd daemon
+        - Restart dnf-automatic-notifyonly.timer
+      blockinfile:
+        path: /etc/dnf/automatic.conf
+        insertbefore: 'apply_updates = no'
+        state: present
+        block: |
+          reboot = when-needed
+          reboot_command = "shutdown -r +2 'dnf-automatic - Reboot after applying package updates'"
+
+  handlers:
+
+    - name: Reload systemd daemon
+      command: systemctl daemon-reload
+
+    - name: Restart dnf-automatic-download.timer
+      service:
+        name: dnf-automatic-download.timer
+        state: restarted
+
+    - name: Restart dnf-automatic-install.timer
+      service:
+        name: dnf-automatic-install.timer
+        state: restarted
+
+    - name: Restart dnf-automatic-notifyonly.timer
+      service:
+        name: dnf-automatic-notifyonly.timer
+        state: restarted
