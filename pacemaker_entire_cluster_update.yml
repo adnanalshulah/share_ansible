@@ -1,6 +1,6 @@
 ---
 - name: Pacemaker Entire Cluster update 
-  hosts: node1
+  hosts: node1  #job will run in one node by it will delegate to under node as well
   vars:
     reboot_request: "false" # if you want to reboot the machine after update
 
