@@ -1,0 +1,110 @@
+---
+- name: Pacemaker Rolling update cluster
+  hosts: rhel8
+  vars:
+    reboot_request: "false" # if you want to reboot the machine after update
+    move_resource_back: "false" # option : move resource back to this node 
+
+  pre_tasks:
+
+    - name: install yum-utils in the system 
+      ansible.builtin.yum:
+        name: yum-utils
+        state: latest
+
+    - name: Geting name of resources are running in the cluster
+      register: resources
+      ansible.builtin.shell: "pcs resource status | grep -v -i Group | awk '{print $2}'"
+
+    - name: Check if the resources are running in "{{ inventory_hostname }}"
+      ignore_errors: true
+      register: running_resource
+      ansible.builtin.shell: 'pcs resource status | grep -i started | grep -w "{{ inventory_hostname }}"'
+
+    - name: Moving the resources from the "{{ inventory_hostname }}" to another node and add constraints
+      when: running_resource.rc == 0
+      loop: "{{ resources.stdout_lines }}"
+      register: moving_resources
+      ansible.builtin.command: pcs resource move {{ item }} 
+
+    - name: Delete constraints which has been added because of moving the resources
+      when: running_resource.rc == 0
+      loop: "{{ resources.stdout_lines }}"
+      register: clearing_resources
+      ansible.builtin.command: pcs resource clear {{ item }}
+
+    - name: Place the "{{ inventory_hostname }}" node tinto Standby mode
+      register: standby_mode
+      ansible.builtin.command: pcs node standby "{{ inventory_hostname }}"
+
+    - name: Stop the cluster softwares on the "{{ inventory_hostname }}" node
+      register: stop_node
+      ansible.builtin.command: pcs cluster stop "{{ inventory_hostname }}"
+        
+  tasks:      
+    - name: Block to update the Operation System of the cluster node 
+      when: ( standby_mode.rc == 0) and (stop_node.rc == 0)
+      block:
+
+      - name: Starting update the system 
+        ansible.builtin.yum:
+          name: '*'
+          state: latest
+
+      - name: check if the system required reboot
+        register: required_reboot
+        changed_when: false
+        failed_when: false
+        no_log: True
+        ansible.builtin.command: needs-restarting -r
+
+      - name: Disable the cluster service on "{{ inventory_hostname }}" to avoid auto-rejoin
+        when: (required_reboot.rc == 1) and (reboot_request == 'true')
+        ansible.builtin.command:  pcs cluster disable "{{ inventory_hostname }}"
+
+      - name: Reboot the system if required and requested
+        when: (required_reboot.rc == 1) and (reboot_request == 'true')
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+
+  post_tasks:
+
+    - name: Enable the cluster service on "{{ inventory_hostname }}"
+      ansible.builtin.command:  pcs cluster enable "{{ inventory_hostname }}"
+
+    - name: Start the cluster software on the "{{ inventory_hostname }}" node
+      ansible.builtin.command:  pcs cluster start "{{ inventory_hostname }}"
+
+    - name: Re-activate "{{ inventory_hostname }}" for service
+      ansible.builtin.command: pcs node unstandby "{{ inventory_hostname }}"
+
+    - name: 10 second pause to give time to the node to be online again
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Check that everything appears as it should be
+      register: node_status
+      ansible.builtin.shell: 'pcs status | grep -i online | grep -w "{{ inventory_hostname }}"'
+
+    - name: the resources want to move back to update node "{{ inventory_hostname }}"
+      when: (node_status.rc == 0) and (move_resource_back == 'true')
+      block: 
+      
+        - name: Geting name of resources running in the cluster
+          register: resources
+          ansible.builtin.shell: "pcs resource status | grep -v -i Group | awk '{print $2}'"
+
+        - name: Moving the resources to the "{{ inventory_hostname }}" to another node and add constraints 
+          loop: "{{ resources.stdout_lines }}"
+          ansible.builtin.command: pcs resource move {{ item }} 
+
+        - name: Delete constraints which has been added because moving the resources
+          loop: "{{ resources.stdout_lines }}"
+          ansible.builtin.command: pcs resource clear {{ item }}
+
+    - name: Move the resource to cluster node "{{ inventory_hostname }}"
+      failed_when: false
+      ansible.builtin.assert:
+          that: (node_status.rc == 1) or (move_resource_back == 'false')
+          success_msg: "Resources running on the another node and {{ inventory_hostname }} is online"
+          fail_msg: "Resources running on {{ inventory_hostname }}"
