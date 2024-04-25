@@ -1,0 +1,88 @@
+---
+- name: Pacemaker Entire Cluster update 
+  hosts: node1
+  vars:
+    reboot_request: "false" # if you want to reboot the machine after update
+
+  pre_tasks:
+
+    - name: Geting Cluster nodes name
+      register: nodes
+      ansible.builtin.shell: "pcs status nodes | grep -A2 -i 'Pacemaker Nodes' | grep -i online | xargs -n 1 | grep -v -i online"
+
+    - name: Geting name of resources running in the cluster
+      register: resources
+      ansible.builtin.shell: "pcs resource status | grep -v -i Group | awk '{print $2}'"
+
+    - name: Put the cluster in Maintenance mode
+      ansible.builtin.command: pcs property set maintenance-mode=true
+
+    - name: Disable all the resources in the cluster 
+      loop: "{{ resources.stdout_lines }}"
+      ansible.builtin.command: pcs resource disable {{ item }} 
+
+    - name: Places all nodes into Standby mode
+      register: standby_mode
+      ansible.builtin.command: pcs node standby --all
+
+    - name: Stop the cluster softwares on all nodes
+      register: stop_node
+      ansible.builtin.command: pcs cluster stop --all
+
+    - name: Disable the cluster service on all cluster nodes to avoid auto-rejoin
+      ansible.builtin.command:  pcs cluster disable --all
+        
+  tasks: 
+
+    - name: Block to update the OS of the cluster nodes 
+      vars: 
+        cluster_nodes: "{{ nodes.stdout_lines }}"
+      when: ( standby_mode.rc == 0) and (stop_node.rc == 0)
+      block:
+
+      - name: Starting update the Oration System
+        loop: "{{ cluster_nodes }}"
+        delegate_to: "{{ item }}"
+        ansible.builtin.yum:
+          name: '*'
+          state: latest
+
+      - name: Reboot the server if it is requested   
+        loop: "{{ cluster_nodes }}"
+        delegate_to: "{{ item }}"
+        when: reboot_request == 'true'
+        ansible.builtin.reboot:
+          reboot_timeout: 3600
+
+  post_tasks:
+
+    - name: Enable the cluster service on all nodes
+      ansible.builtin.command:  pcs cluster enable --all
+
+    - name: Start the cluster softwares on the all cluster nodes
+      ansible.builtin.command:  pcs cluster start --all
+
+    - name: Re-activate all cluster nodes for service
+      ansible.builtin.command: pcs node unstandby --all
+
+    - name: Re-start all stopped resources in cluster
+      loop: "{{ resources.stdout_lines }}"
+      ansible.builtin.command: pcs resource enable {{ item }}
+
+    - name: Put the cluster in Maintenance mode
+      ansible.builtin.command: pcs property set maintenance-mode=false
+
+    - name: 20 second pause # you can change the time as per need it 
+      ansible.builtin.pause:
+        seconds: 20
+
+    - name: Check that everything appears as it should be
+      register: node_status
+      ansible.builtin.shell: 'pcs status | grep -i online'
+      
+    - name: Check if the cluster nodes are online 
+      failed_when: false
+      ansible.builtin.assert:
+          that: node_status.rc == 0 
+          success_msg: "All cluster nodes are online again"
+          fail_msg: "Please check the cluster something went wrong"
