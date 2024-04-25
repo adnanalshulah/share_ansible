@@ -1,6 +1,6 @@
 ---
 - name: Pacemaker Rolling update cluster
-  hosts: rhel8
+  hosts: node1
   vars:
     reboot_request: "false" # if you want to reboot the machine after update
     move_resource_back: "false" # option : move resource back to this node 
