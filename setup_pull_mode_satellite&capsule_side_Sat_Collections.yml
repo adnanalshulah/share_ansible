@@ -1,0 +1,39 @@
+# This playbook is required to have redhat satellite ansible Collections 
+# First collection (redhat.satellite) https://console.redhat.com/ansible/automation-hub/repo/published/redhat/satellite/
+# Second collection (redhat.satellite_operations) https://console.redhat.com/ansible/automation-hub/repo/published/redhat/satellite_operations/
+---
+- name: Setup Remote Execution Pull mode on Satellite/Capule Server using redhat satellite Collections
+  hosts: satellite_name
+  become: true
+  gather_facts: no
+  vars:
+    scenario: '' #satellite install scenario (satellite or capusle)
+    hammer_username: '' #admin user in satellite/capusle server
+    hammer_passowr: ''  #password of admin user in satellite/capusle server
+    satellite_url: ''   #Satellite/capule 
+
+  tasks:
+
+    - name: Enable the pull-based transport on your "{{ scenario }}" Server
+      vars:
+        satellite_installer_scenario: "{{ scenario }}"
+        satellite_installer_options:
+          - '--foreman-proxy-plugin-remote-execution-script-mode pull-mqtt'
+      ansible.builtin.include_role:
+        name: redhat.satellite_operations.installer
+
+    - name: Configure the firewall to allow MQTT service on port 1883
+      ansible.posix.firewalld:
+        service: mqtt
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Enable Prefer registered through Capsule for remote execution
+      redhat.satellite.setting:
+        username: "{{ hammer_username }} "
+        password: "{{ hammer_passowr }}"
+        server_url: "{{ satellite_url }}"
+        name: "remote_execution_prefer_registered_through_proxy"
+        value: "true"
+
