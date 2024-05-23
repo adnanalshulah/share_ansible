@@ -1,0 +1,46 @@
+---
+- name: Setup pull mode in client side  
+  hosts: all
+  become: true
+  vars:
+    satellite_url: "" #your satellite url
+    enable_repos: "satellite-client-6-for-rhel-8-x86_64-rpms" #required repo to install pull mode packages
+    katello_package: "" # katello ca from satellite url example (http://satellite-url/pub/katello-ca-consumer-latest.noarch.rpm)
+
+  tasks:
+
+    - name: Check yggdrasild service running or no
+      block:
+        - name: Run yggdrasild status
+          ansible.builtin.shell: yggdrasild status | grep -w active
+
+      rescue:
+
+      - name: Waits for port 1883 of any IP to close active connections, don't start checking for 5 seconds
+        ansible.builtin.wait_for:
+          host: "{{ satellite_url }}"
+          port: 1883
+          delay: 5
+          state: drained
+          timeout: 10
+          msg: "Client can't reach the satellite server in port 1883"
+
+      - name: Enable Satellite client repo in the "{{ inventory_hostname }}"
+        community.general.rhsm_repository:
+          name:  "{{ enable_repos }}"
+          state: enabled
+
+      - name: Install pull mode packages in the "{{ inventory_hostname }}"
+        ansible.builtin.yum:
+          name: 
+            - "{{ katello_package }}"
+            - katello-pull-transport-migrate
+            - katello-host-tools
+            - katello-host-tools-tracer
+          state: present
+
+      - name: restart service yggdrasild
+        ansible.builtin.service:
+          name: yggdrasild
+          state: restarted
+          enabled: true
