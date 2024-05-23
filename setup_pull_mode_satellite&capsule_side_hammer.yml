@@ -9,7 +9,6 @@
     scenario: '' #satellite install scenario (satellite or capusle)
     hammer_username: '' #admin user in satellite/capusle server
     hammer_passowr: ''  #password of admin user in satellite/capusle server
-    satellite_url: ''   #Satellite/capule 
 
   tasks:
     - name: Enable the pull-based transport on your "{{ scenario }}" Server
