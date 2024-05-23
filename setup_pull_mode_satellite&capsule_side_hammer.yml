@@ -1,0 +1,26 @@
+# This playbook is running hammer in ansible shell module
+
+---
+- name: Setup Remote Execution Pull mode on Satellite/Capule Server using redhat satellite Collections
+  hosts: satellite_capusle_hostname
+  become: true
+  gather_facts: no
+  vars:
+    scenario: '' #satellite install scenario (satellite or capusle)
+    hammer_username: '' #admin user in satellite/capusle server
+    hammer_passowr: ''  #password of admin user in satellite/capusle server
+    satellite_url: ''   #Satellite/capule 
+
+  tasks:
+    - name: Enable the pull-based transport on your "{{ scenario }}" Server
+      ansible.builtin.shell: 'satellite-installer --scenario {{ scenario }} --foreman-proxy-plugin-remote-execution-script-mode pull-mqtt'
+
+    - name: Configure the firewall to allow MQTT service on port 1883
+      ansible.posix.firewalld:
+        service: mqtt
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Enable Prefer registered through Capsule for remote execution
+      ansible.builtin.shell: 'hammer -u {{ hammer_username }} -p {{ hammer_passowr }} settings set --name remote_execution_prefer_registered_through_proxy  --value True'
