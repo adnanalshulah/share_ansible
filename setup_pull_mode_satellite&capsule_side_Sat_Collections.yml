@@ -3,7 +3,7 @@
 # Second collection (redhat.satellite_operations) https://console.redhat.com/ansible/automation-hub/repo/published/redhat/satellite_operations/
 ---
 - name: Setup Remote Execution Pull mode on Satellite/Capule Server using redhat satellite Collections
-  hosts: satellite_name
+  hosts: satellite_capule_hostname
   become: true
   gather_facts: no
   vars:
