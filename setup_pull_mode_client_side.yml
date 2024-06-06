@@ -11,8 +11,18 @@
 
     - name: Check yggdrasild service running or no
       block:
+        - name: Check the subscription-manager status in the host to verify if the host is register or no
+          timeout: 60 #time in seconds
+          ansible.builtin.command: subscription-manager status
+
+        - name: Restart service yggdrasild
+          ansible.builtin.service:
+            name: yggdrasild
+            state: restarted
+            enabled: true
+            
         - name: Run yggdrasild status
-          ansible.builtin.shell: yggdrasild status | grep -w active
+          ansible.builtin.shell: (yggdrasild status | grep -w "Connected" ) && (yggdrasild status | grep -w active)
 
       rescue:
 
